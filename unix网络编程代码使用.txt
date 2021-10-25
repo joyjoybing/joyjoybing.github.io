@@ -1,0 +1,187 @@
+如何使用unix网络编程第三版的源码
+
+
+
+unix系统我没安装，系统不易获得而且也没必要安装unix。用linux是最佳选择。再者我本来就是ubuntu系统，所以就在ubuntu下搭建环境了。
+
+1，安装编译器，为了齐全还是安装一下build-essential
+
+
+sudo apt-get install build-essential
+
+3，解压unpv12e.tar.gz后进入目录查看README，然后可以按照里面提示操作，不过会遇到问题
+
+第一步：在终端中进入upnv12e目录，然后执行代码：
+
+./configure
+
+cd lib
+
+make  //这一步我出错了
+gcc -g -o2 -d_reentrant -wall   -c -o connect_nonb.o connect_nonb.c
+in file included from connect_nonb.c:1:
+unp.h:114: error: redefinition of ‘struct in_pktinfo’
+make: *** [connect_nonb.o] 错误 1
+redefinition of ‘struct in_pktinfo’的解决方法如下： 
+结构in_pktinfo已经包含在标准头文件bits/in.h中了, 它又通过 netinet/in.h 在unp.h中被包括进来. 只要将 unp.h 中的结构定义comment out注释掉就行了. 
+注释掉之后重新   make //build the basic library that all programs need
+这次就成功了！生成了../libunp.a文件
+
+
+cd ../libfree  # continue building the basic library
+make
+
+
+cd ../libgai   # the getaddrinfo() and getnameinfo() functions
+make         
+gcc -g -o2 -d_reentrant -wall   -c -o getaddrinfo.o getaddrinfo.c
+getaddrinfo.c: in function ‘getaddrinfo’:
+getaddrinfo.c:58: error: ‘eai_addrfamily’ undeclared (first use in this function)
+getaddrinfo.c:58: error: (each undeclared identifier is reported only once
+getaddrinfo.c:58: error: for each function it appears in.)
+getaddrinfo.c:116: error: ‘eai_nodata’ undeclared (first use in this function)
+make: *** [getaddrinfo.o] 错误 1
+cd ..
+gedit configure.in 
+找到下面一行注释掉
+LIBGAI_OBJS="getaddrinfo.o getnameinfo.o freeaddrinfo.o gai_strerror.o"
+然后用下面的代码代替注释掉的那行 
+1.LIBGAI_OBJS=
+2.if test "$ac_cv_func_getaddrinfo" = no ; then
+3.LIBGAI_OBJS="$LIBGAI_OBJS getaddrinfo.o"
+4.fi
+5.if test "$ac_cv_func_getnameinfo" = no ; then
+6.LIBGAI_OBJS="$LIBGAI_OBJS getnameinfo.o"
+7.fi
+8.if test "$ac_cv_func_freeaddrinfo" = no ; then
+9.LIBGAI_OBJS="$LIBGAI_OBJS freeaddrinfo.o"
+10.fi
+11.if test "$ac_cv_func_gai_strerror" = no ; then
+12.LIBGAI_OBJS="$LIBGAI_OBJS gai_strerror.o"
+13.fi
+autoconf
+./configure   
+gedit make.defines 
+在文件末尾加上下面这句：
+CFLAGS = -g -O2 -D_REENTRANT -Wall -D_GNU_SOURCE
+然后重新执行代码：
+cd libfai  # continue building the basic library
+make   //ok，问题解决了！
+
+
+将生成的libunp.a静态库复制到/usr/lib/和/usr/lib64/中。
+sudo cp libunp.a /usr/lib
+sudo cp libunp.a /usr/lib64
+
+
+修改unp.h并将其和config.h拷贝到/usr/include中，为了以后include方便
+#include "../config.h"修改为#include "config.h"
+sudo cp lib/unp.h /usr/include
+sudo cp config.h /usr/include
+
+sudo su root
+
+root 111111
+
+编译源代码
+gcc daytimetcpcli.c -o daytimetcpcli -lunp
+跟普通的编译不一样的是要在最后加上刚才那个链接库，-l参数加上刚才那个libunp.a, 去掉lib和后面的.a。最后得到参数-lunp
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+第一步：在终端中进入upnv13e目录，然后执行代码：
+
+./configure   
+
+
+
+第二步：这里有问题及解决方法
+
+cd lib 
+make（如果报如下错误：             inet_ntop.c:61: error: argument 'size' doesn't match prototype
+                                               /usr/include/arpa/inet.h:153: error: prototype declaration
+                                                   inet_ntop.c第61行 size_t size ->改成 socklen_t size）
+
+第三步：这一步没有问题
+
+cd ../libfree  
+make   
+
+
+
+第四步：
+
+
+cd ../libgai 
+make 
+
+cd ..   //回到unpv13e目录 
+然后拷贝生成的ku到系统库目录：
+ 
+sudo cp libunp.a /usr/lib   
+sudo cp libunp.a /usr/lib32
+
+
+
+
+第五步：修改unp.h并将其和config.h拷贝到/usr/include中，为了以后include方便
+
+vim  lib/unp.h    
+gedit lib/unp.h   //将unp.h中#include "../config.h"修改为#include "config.h"
+sudo cp lib/unp.h /usr/include
+sudo cp config.h /usr/include
+
+跟普通的编译不一样的是要在最后加上刚才那个链接库，-l参数加上刚才那个libunp.a去掉lib和后面的.a。最后得到参数-lunp
+
+cd /intro
+gcc daytimetcpcli.c -o daytimetcpcli -lunp（貌似只能用gcc，不能用g++）

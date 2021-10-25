@@ -1,0 +1,144 @@
+
+1) SIGHUP 本信号在用户终端连接(正常或非正常)结束时发出, 通常是在终端的控制进程结束时, 通知同一session内的各个作业, 这时它们与控制终端不再关联. 　　
+2) SIGINT 程序终止(interrupt)信号, 在用户键入INTR字符(通常是Ctrl-C)时发出 　　
+3) SIGQUIT 和SIGINT类似, 但由QUIT字符(通常是Ctrl-\)来控制. 进程在因收到SIGQUIT退出时会产生core文件, 在这个意义上类似于一个程序错误信号. 　　
+4) SIGILL 执行了非法指令. 通常是因为可执行文件本身出现错误, 或者试图执行数据段. 堆栈溢出时也有可能产生这个信号. 　　
+5) SIGTRAP 由断点指令或其它trap指令产生. 由debugger使用. 　　
+6) SIGABRT 程序自己发现错误并调用abort时产生. 　　
+7) SIGIOT 在PDP-11上由iot指令产生, 在其它机器上和SIGABRT一样. 　　
+8) SIGBUS 非法地址, 包括内存地址对齐(alignment)出错. eg: 访问一个四个字长的整数, 但其地址不是4的倍数. 　　
+9) SIGFPE 在发生致命的算术运算错误时发出. 不仅包括浮点运算错误, 还包括溢出及除数为0等其它所有的算术的错误. 　　
+10) SIGKILL 用来立即结束程序的运行. 本信号不能被阻塞, 处理和忽略. 　　
+11) SIGUSR1 留给用户使用 　　
+12) SIGSEGV 试图访问未分配给自己的内存, 或试图往没有写权限的内存地址写数据. 　　
+13) SIGUSR2 留给用户使用 　　
+14) SIGPIPE Broken pipe 　　
+15) SIGALRM 时钟定时信号, 计算的是实际的时间或时钟时间. alarm函数使用该信号. 　　
+16) SIGTERM 程序结束(terminate)信号, 与SIGKILL不同的是该信号可以被阻塞和处理. 通常用来要求程序自己正常退出. shell命令kill缺省产生这个信号. 　　
+17) SIGCHLD 子进程结束时, 父进程会收到这个信号. 　　
+18) SIGCONT 让一个停止(stopped)的进程继续执行. 本信号不能被阻塞. 可以用一个handler来让程序在由stopped状态变为继续执行时完成特定的工作. 例如, 重新显示提示符 　　
+19) SIGSTOP 停止(stopped)进程的执行. 注意它和terminate以及interrupt的区别: 该进程还未结束, 只是暂停执行. 本信号不能被阻塞, 处理或忽略. 　　
+20) SIGTSTP 停止进程的运行, 但该信号可以被处理和忽略. 用户键入SUSP字符时(通常是Ctrl-Z)发出这个信号 　　
+21) SIGTTIN 当后台作业要从用户终端读数据时, 该作业中的所有进程会收到SIGTTIN信号. 缺省时这些进程会停止执行. 　　
+22) SIGTTOU 类似于SIGTTIN, 但在写终端(或修改终端模式)时收到. 　　
+23) SIGURG 有紧急数据或out-of-band数据到达socket时产生. 　　
+24) SIGXCPU 超过CPU时间资源限制. 这个限制可以由getrlimit/setrlimit来读取/改变 　　
+25) SIGXFSZ 超过文件大小资源限制. 　　
+26) SIGVTALRM 虚拟时钟信号. 类似于SIGALRM, 但是计算的是该进程占用的CPU时间. 　　
+27) SIGPROF 类似于SIGALRM/SIGVTALRM, 但包括该进程用的CPU时间以及系统调用的时间. 　　
+28) SIGWINCH 窗口大小改变时发出. 　　
+29) SIGIO 文件描述符准备就绪, 可以开始进行输入/输出操作. 　　
+30) SIGPWR Power failure
+ 
+对于2和3信号量好理解，屏蔽ctrl+c和ctrl+\。但是1信号量到底什么作用呢？
+
+
+
+
+SIGHUP信号与控制终端
+UNIX中进程组织结构为 session (会话)包含一个前台进程组及一个或多个后台进程组，一个进程组包含多个进程。一个session可能会有一个session首进程，而一个session首进程可能会有一个控制终端。一个进程组可能会有一个进程组首进程。进程组首进程的进程ID与该进程组ID相等。这儿是可能会有，在一定情况之下是没有的。与终端交互的进程是前台进程，否则便是后台进程。
+ 
+ SIGHUP会在以下3种情况下被发送给相应的进程：
+  1、终端关闭时，该信号被发送到session首进程以及作为job提交的进程（即用 & 符号提交的进程）
+  2、session首进程退出时，该信号被发送到该session中的前台进程组中的每一个进程
+  3、若父进程退出导致进程组成为孤儿进程组，且该进程组中有进程处于停止状态（收到SIGSTOP或SIGTSTP信号），该信号会被发送到该进程组中的每一个进程。
+ 
+系统对SIGHUP信号的默认处理是终止收到该信号的进程。所以若程序中没有捕捉该信号，当收到该信号时，进程就会退出。
+ 
+下面观察几种因终端关闭导致进程退出的情况，在这儿进程退出是因为收到了SIGHUP信号。login shell是session首进程。
+ 
+首先写一个测试程序，代码如下：
+#include <stdio.h>
+#include <signal.h>
+char **args;
+void exithandle(int sig)
+...{
+       printf("%s : sighup received ",args[1]);
+}
+int main(int argc,char **argv)
+...{
+       args = argv;
+       signal(SIGHUP,exithandle);
+       pause();
+       return 0;
+}
+程序中捕捉SIGHUP信号后打印一条信息，pause()使程序暂停。
+编译后的执行文件为sigtest。
+ 
+1、命 令：sigtest front > tt.txt
+   操 作：关闭终端
+   结 果：tt.txt文件的内容为front : sighup received
+   原 因: sigtest是前台进程，终端关闭后，根据上面提到的第1种情况，login shell作为session首进程，会收到SIGHUP信号然后退出。根据第2种情况，sigtest作为前台进程，会收到login shell发出的SIGHUP信号。
+ 
+2、命 令：sigtest back > tt.txt &
+      操 作：关闭终端
+      结 果：tt.txt文件的内容为 back : sighup received
+      原 因: sigtest是提交的job，根据上面提到的第1种情况，sigtest会收到SIGHUP信号。
+ 
+3、命 令：写一个shell，内容为[sigtest &]，然后执行该shell
+      操 作：关闭终端
+      结 果：ps -ef | grep sigtest 会看到该进程还在，tt文件为空
+      原 因: 执行该shell时，sigtest作为job提交，然后该shell退出，致使sigtest变成了孤儿进程，不再是当前session的job了，因此sigtest即不是session首进程也不是job，不会收到SIGHUP。同时孤儿进程属于后台进程，因此login shell退出后不会发送SIGHUP给sigtest，因为它只将该信号发送给前台进程。第3条说过若进程组变成孤儿进程组的时候，若有进程处于停止状态，也会收到SIGHUP信号，但sigtest没有处于停止状态，所以不会收到SIGHUP信号。
+ 
+4、命 令：nohup sigtest > tt
+      操 作：关闭终端
+      结 果：tt文件为空
+      原 因: nohup可以防止进程收到SIGHUP信号
+ 
+至此，我们就清楚了何种情况下终端关闭后进程会退出，何种情况下不会退出。
+
+要想终端关闭后进程不退出有以下几种方法，均为通过shell的方式：
+ 1、编写shell，内容如下
+       trap "" SIGHUP #该句的作用是屏蔽SIGHUP信号，trap可以屏蔽很多信号
+       sigtest
+ 2、nohup sigtest 可以直接在命令行执行，
+       若想做完该操作后继续别的操作，可以 nohup sigtest &
+ 3、编写shell，内容如下
+       sigtest &
+       其实任何将进程变为孤儿进程的方式都可以，包括fork后父进程马上退出。
+ 
+
+SIGCHLD信号
+
+       子进程死后,会发送SIGCHLD信号给父进程。
+
+        一个进程在调用exit命令结束自己的生命的时候，其实它并没有真正的被销毁，而是留下一个称为僵尸进程（Zombie）的数据结构（系统调用exit，它的作用是使进程退出，但也仅仅限于将一个正常的进程变成一个僵尸进程，并不能将其完全销毁）。在Linux进程的状态中，僵尸进程 是非常特殊的一种，它已经放弃了几乎所有内存空间，没有任何可执行代码，也不能被调度，仅仅在进程列表中保留一个位置，记载该进程的退出状态等信息供其他进程收集，除此之外，僵尸进程不再占有任何内存空间。它需要它的父进程来为它收尸，如果他的父进程没安装SIGCHLD信号处理函数调用wait或waitpid()等待子进程结束，又没有显式忽略该信号，那么它就一直保持僵尸状态，如果这时父进程结束了，那么init进程自动会接手这个子进程，为它收尸，它还是能被清除的。但是如果如果父进程是一个循环，不会结束，那么子进程就会一直保持僵尸状态，这就是为什么系统中有时会有很多的僵尸进程。
+
+
+SIGTERM信号
+
+kill() 可以发 SIGTERM 过去；kill 命令默认也使用 SIGTERM 信号。
+
+SIGTERM 信号的处理函数，常见的是用来清理、退出；或者程序可以忽略这个信号，以防误杀。
+        SIGTERM is the default signal sent to a process by the kill or killall commands. It causes the termination of a process, but unlike the SIGKILL signal, it can be caught and interpreted (or ignored) by the process. Therefore, SIGTERM is more akin to asking a process to terminate nicely, allowing cleanup and closure of files. For this reason, on many Unix systems during shutdown, init issues SIGTERM to all processes that are not essential to powering off, waits a few seconds, and then issues SIGKILL to forcibly terminate other processes to allow the computer to halt. 
+
+简单的Shell程序 
+
+　　假设用户每天使用下述命令备份自己的数据文件: 
+
+　　　　$cd /usr/icewalk;ls * |cpio -o > /dev/fd0 
+
+　　我们可以把它写在一个文件，如:ba.sh中: 
+
+　　　　$cat >ba.sh 
+　　　　cd /usr/icewalk 
+　　　　ls * |cpio -o > /dev/fd0 
+　　　　^D 　(ctrl_d) 
+
+　　程序ba.sh就是Shell脚本，用户可以用vi或其他编辑工具编写更复杂的脚本。 
+
+　　此时用户备份文件只需要执行Shell程序ba.sh,执行时需在当前Shell中创建一个子Shell: 
+
+　　　　$sh ba.sh 
+
+　　程序sh与用户登陆时执行的Bourne 
+Shell相同，但当Sh命令带参数ba.sh后，它将不再是一个交互式的Shell，而是直接从文件ba.sh中读取命令。 
+
+　　执行ba.sh中命令的另一方法是给文件ba.sh执行权限： 
+
+　　　　$chmod +x ba.sh 
+
+　　此时，用户可以输入文件名ba.sh做为一个命令来备份自己的数据，需要注意的是，用这种方法执行命令的时候，文件ba.sh必须存在于环境变量$PATH所指定的路径上。 
+
+
+
